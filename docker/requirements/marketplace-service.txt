@@ -1,0 +1,9 @@
+# Requirements для Marketplace Service
+
+-r base.txt
+
+# Payment processing
+stripe==7.10.0
+
+# Search and filtering
+elasticsearch==8.11.1

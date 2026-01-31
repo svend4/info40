@@ -1,0 +1,85 @@
+# Dockerfile для Python Coding Agent
+# Специализированный агент для Python разработки
+
+FROM python:3.11-slim
+
+LABEL maintainer="Agent Platform Team"
+LABEL agent-type="python-coding"
+LABEL capabilities="python_coding,code_review,debugging,unit_testing"
+LABEL version="1.0.0"
+
+# Установка инструментов для Python разработки
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    vim \
+    nano \
+    build-essential \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создание пользователя для безопасности
+RUN groupadd -r agent && useradd -r -g agent agent
+
+# Установка популярных Python библиотек для разработки
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    # Linting и форматирование
+    black \
+    isort \
+    flake8 \
+    pylint \
+    mypy \
+    # Тестирование
+    pytest \
+    pytest-cov \
+    pytest-asyncio \
+    hypothesis \
+    # Web frameworks
+    fastapi \
+    flask \
+    django \
+    # Data science
+    numpy \
+    pandas \
+    scikit-learn \
+    # Async
+    aiohttp \
+    httpx \
+    # Utils
+    requests \
+    pydantic \
+    python-dotenv \
+    # AI/LLM libraries
+    anthropic \
+    openai \
+    langchain \
+    langchain-core
+
+# Рабочая директория
+WORKDIR /workspace
+
+# Создание директорий
+RUN mkdir -p /workspace /output /logs && \
+    chown -R agent:agent /workspace /output /logs
+
+# Переключение на непривилегированного пользователя
+USER agent
+
+# Копирование скрипта агента
+COPY --chown=agent:agent src/agents/python_agent.py /app/agent.py
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV AGENT_TYPE=python_coding
+ENV WORKSPACE=/workspace
+ENV OUTPUT_DIR=/output
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=15s --start-period=30s --retries=3 \
+    CMD python -c "print('Agent is healthy')"
+
+# Точка входа
+ENTRYPOINT ["python", "/app/agent.py"]
+CMD ["--help"]

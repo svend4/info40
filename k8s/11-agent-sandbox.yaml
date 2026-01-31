@@ -1,0 +1,228 @@
+---
+# Kagent CRD для AI Agents (Custom Resource Definition)
+# Этот файл использует Kagent - Kubernetes-native фреймворк для AI агентов
+apiVersion: kagent.dev/v1alpha1
+kind: AgentSandbox
+metadata:
+  name: python-coding-agent-sandbox
+  namespace: agent-platform
+spec:
+  # Ресурсы для sandbox
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  # Лимиты выполнения
+  timeout: 300s  # Максимальное время выполнения
+  maxConcurrentTasks: 5
+
+  # Безопасность
+  security:
+    sandbox: true
+    network:
+      enabled: true
+      allowedHosts:
+        - "api.anthropic.com"
+        - "api.openai.com"
+        - "*.github.com"
+    filesystem:
+      readOnly: true
+      allowedPaths:
+        - /tmp
+        - /workspace
+
+  # Образ для выполнения
+  image: agent-platform/python-agent:latest
+
+  # Возможности агента
+  capabilities:
+    - python_coding
+    - code_review
+    - debugging
+    - unit_testing
+
+---
+# AgentPool - пул агентов для обработки задач
+apiVersion: kagent.dev/v1alpha1
+kind: AgentPool
+metadata:
+  name: coding-agent-pool
+  namespace: agent-platform
+spec:
+  # Количество агентов в пуле
+  replicas: 10
+
+  # Селектор capabilities
+  capabilitySelector:
+    matchLabels:
+      type: coding
+
+  # Template для агентов
+  template:
+    spec:
+      model: claude-sonnet-4.5
+      sandbox:
+        name: python-coding-agent-sandbox
+
+      # Переменные окружения
+      env:
+        - name: AGENT_TYPE
+          value: "coding"
+        - name: MODEL_PROVIDER
+          value: "anthropic"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: ANTHROPIC_API_KEY
+
+---
+# Deployment для Worker-агентов (обрабатывают задачи из очереди)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-worker
+  namespace: agent-platform
+  labels:
+    app: agent-worker
+    component: worker
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: agent-worker
+  template:
+    metadata:
+      labels:
+        app: agent-worker
+        component: worker
+    spec:
+      serviceAccountName: agent-worker-sa
+      containers:
+      - name: agent-worker
+        image: agent-platform/agent-worker:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: WORKER_TYPE
+          value: "general"
+        - name: RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: RABBITMQ_HOST
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: RABBITMQ_USER
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: RABBITMQ_PASSWORD
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: ANTHROPIC_API_KEY
+        - name: SANDBOX_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: SANDBOX_ENABLED
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+
+---
+# ServiceAccount для agent-worker
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-worker-sa
+  namespace: agent-platform
+
+---
+# Role для agent-worker (доступ к AgentSandbox)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-worker-role
+  namespace: agent-platform
+rules:
+- apiGroups: ["kagent.dev"]
+  resources: ["agentsandboxes", "agentpools"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding для agent-worker
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-worker-rolebinding
+  namespace: agent-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-worker-role
+subjects:
+- kind: ServiceAccount
+  name: agent-worker-sa
+  namespace: agent-platform
+
+---
+# HorizontalPodAutoscaler для agent-worker
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-worker-hpa
+  namespace: agent-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-worker
+  minReplicas: 10
+  maxReplicas: 100  # Может масштабироваться до 100 воркеров
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Масштабирование по количеству сообщений в очереди
+  - type: External
+    external:
+      metric:
+        name: rabbitmq_queue_messages
+        selector:
+          matchLabels:
+            queue: agent-tasks
+      target:
+        type: AverageValue
+        averageValue: "10"  # Создать новый под, если больше 10 задач на воркера

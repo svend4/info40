@@ -1,0 +1,48 @@
+# Dockerfile для API Gateway
+# Точка входа для всех API запросов
+
+FROM python:3.11-slim as builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements/api-gateway.txt /tmp/requirements.txt
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
+
+FROM python:3.11-slim
+
+LABEL maintainer="Agent Platform Team"
+LABEL service="api-gateway"
+LABEL version="1.0.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY src/api_gateway /app/api_gateway
+COPY src/common /app/common
+
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app
+
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+EXPOSE 8000 9000
+
+# Использование uvicorn для production
+CMD ["uvicorn", "api_gateway.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

@@ -1,0 +1,138 @@
+---
+# Agent Registry Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry-service
+  namespace: agent-platform
+  labels:
+    app: registry-service
+    component: core
+spec:
+  replicas: 3  # Для высокой доступности
+  selector:
+    matchLabels:
+      app: registry-service
+  template:
+    metadata:
+      labels:
+        app: registry-service
+        component: core
+    spec:
+      containers:
+      - name: registry-service
+        image: agent-platform/registry-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: SERVICE_NAME
+          value: "registry-service"
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_PORT
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: REDIS_PASSWORD
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Registry Service ClusterIP
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry-service
+  namespace: agent-platform
+  labels:
+    app: registry-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: registry-service
+
+---
+# HorizontalPodAutoscaler для Registry Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: registry-service-hpa
+  namespace: agent-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: registry-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
