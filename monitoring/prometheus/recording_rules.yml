@@ -1,0 +1,388 @@
+# Recording Rules for AI Agent Orchestration Platform
+# Pre-compute expensive queries for faster dashboard rendering
+
+groups:
+  # ============================================================================
+  # HTTP Request Metrics
+  # ============================================================================
+
+  - name: http_metrics
+    interval: 30s
+    rules:
+      # Total request rate per service
+      - record: service:http_requests:rate5m
+        expr: |
+          sum by (service) (
+            rate(http_requests_total[5m])
+          )
+
+      # Error rate per service
+      - record: service:http_errors:rate5m
+        expr: |
+          sum by (service, status) (
+            rate(http_requests_total{status=~"5.."}[5m])
+          )
+
+      # Error percentage per service
+      - record: service:http_error_percentage:rate5m
+        expr: |
+          100 * (
+            sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          )
+
+      # P50 response time per service
+      - record: service:http_duration_seconds:p50
+        expr: |
+          histogram_quantile(0.50,
+            sum by (service, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      # P95 response time per service
+      - record: service:http_duration_seconds:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      # P99 response time per service
+      - record: service:http_duration_seconds:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      # Average response time per service
+      - record: service:http_duration_seconds:avg
+        expr: |
+          sum by (service) (
+            rate(http_request_duration_seconds_sum[5m])
+          )
+          /
+          sum by (service) (
+            rate(http_request_duration_seconds_count[5m])
+          )
+
+  # ============================================================================
+  # Agent Metrics
+  # ============================================================================
+
+  - name: agent_metrics
+    interval: 1m
+    rules:
+      # Task success rate per agent (5m)
+      - record: agent:task_success_rate:5m
+        expr: |
+          sum by (agent_id, agent_name) (
+            rate(agent_tasks_completed_total{status="success"}[5m])
+          )
+          /
+          sum by (agent_id, agent_name) (
+            rate(agent_tasks_total[5m])
+          )
+
+      # Task success rate per agent (1h)
+      - record: agent:task_success_rate:1h
+        expr: |
+          sum by (agent_id, agent_name) (
+            rate(agent_tasks_completed_total{status="success"}[1h])
+          )
+          /
+          sum by (agent_id, agent_name) (
+            rate(agent_tasks_total[1h])
+          )
+
+      # Tasks completed per agent (5m rate)
+      - record: agent:tasks_completed:rate5m
+        expr: |
+          sum by (agent_id, agent_name) (
+            rate(agent_tasks_completed_total[5m])
+          )
+
+      # Average task duration per agent
+      - record: agent:task_duration_seconds:avg
+        expr: |
+          sum by (agent_id) (
+            rate(agent_task_duration_seconds_sum[5m])
+          )
+          /
+          sum by (agent_id) (
+            rate(agent_task_duration_seconds_count[5m])
+          )
+
+      # P95 task duration per agent
+      - record: agent:task_duration_seconds:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (agent_id, le) (
+              rate(agent_task_duration_seconds_bucket[5m])
+            )
+          )
+
+      # Error rate per agent
+      - record: agent:errors:rate5m
+        expr: |
+          sum by (agent_id, agent_name, error_type) (
+            rate(agent_errors_total[5m])
+          )
+
+      # Revenue per agent (1h)
+      - record: agent:revenue:rate1h
+        expr: |
+          sum by (agent_id, agent_name) (
+            rate(agent_revenue_total[1h])
+          )
+
+  # ============================================================================
+  # Task Orchestration Metrics
+  # ============================================================================
+
+  - name: task_metrics
+    interval: 1m
+    rules:
+      # Task creation rate
+      - record: platform:tasks_created:rate5m
+        expr: |
+          sum(rate(tasks_created_total[5m]))
+
+      # Task completion rate
+      - record: platform:tasks_completed:rate5m
+        expr: |
+          sum(rate(tasks_completed_total[5m]))
+
+      # Task failure rate
+      - record: platform:tasks_failed:rate5m
+        expr: |
+          sum(rate(tasks_failed_total[5m]))
+
+      # Task success percentage
+      - record: platform:task_success_percentage:rate5m
+        expr: |
+          100 * (
+            sum(rate(tasks_completed_total[5m]))
+            /
+            sum(rate(tasks_created_total[5m]))
+          )
+
+      # Average task decomposition time
+      - record: platform:task_decomposition_seconds:avg
+        expr: |
+          sum(rate(task_decomposition_duration_seconds_sum[5m]))
+          /
+          sum(rate(task_decomposition_duration_seconds_count[5m]))
+
+      # P95 task decomposition time
+      - record: platform:task_decomposition_seconds:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (
+              rate(task_decomposition_duration_seconds_bucket[5m])
+            )
+          )
+
+      # Average agent matching time
+      - record: platform:agent_matching_seconds:avg
+        expr: |
+          sum(rate(agent_matching_duration_seconds_sum[5m]))
+          /
+          sum(rate(agent_matching_duration_seconds_count[5m]))
+
+      # Current queue depth by status
+      - record: platform:queue_depth:current
+        expr: |
+          sum by (status) (task_queue_depth)
+
+      # Average subtasks per task
+      - record: platform:subtasks_per_task:avg
+        expr: |
+          sum(rate(task_subtask_count_sum[5m]))
+          /
+          sum(rate(task_subtask_count_count[5m]))
+
+  # ============================================================================
+  # Marketplace Metrics
+  # ============================================================================
+
+  - name: marketplace_metrics
+    interval: 1m
+    rules:
+      # Agent search rate
+      - record: marketplace:searches:rate5m
+        expr: |
+          sum(rate(marketplace_search_requests_total[5m]))
+
+      # Contract creation rate
+      - record: marketplace:contracts_created:rate5m
+        expr: |
+          sum by (rental_mode) (
+            rate(marketplace_contracts_created_total[5m])
+          )
+
+      # Contract completion rate
+      - record: marketplace:contracts_completed:rate5m
+        expr: |
+          sum(rate(marketplace_contracts_completed_total[5m]))
+
+      # Review submission rate
+      - record: marketplace:reviews:rate5m
+        expr: |
+          sum by (rating_category) (
+            rate(marketplace_reviews_submitted_total[5m])
+          )
+
+      # Average search duration
+      - record: marketplace:search_duration_seconds:avg
+        expr: |
+          sum(rate(marketplace_search_duration_seconds_sum[5m]))
+          /
+          sum(rate(marketplace_search_duration_seconds_count[5m]))
+
+  # ============================================================================
+  # Platform-Wide Aggregations
+  # ============================================================================
+
+  - name: platform_aggregations
+    interval: 2m
+    rules:
+      # Total platform revenue (24h)
+      - record: platform:revenue_total:24h
+        expr: |
+          sum(increase(platform_revenue_total[24h]))
+
+      # Total platform revenue (7d)
+      - record: platform:revenue_total:7d
+        expr: |
+          sum(increase(platform_revenue_total[7d]))
+
+      # Active agents count
+      - record: platform:active_agents:count
+        expr: |
+          count(agent_status{status="active"})
+
+      # Busy agents count
+      - record: platform:busy_agents:count
+        expr: |
+          count(agent_status{status="busy"})
+
+      # Total agents count
+      - record: platform:total_agents:count
+        expr: |
+          count(agent_status)
+
+      # Active contracts count
+      - record: platform:active_contracts:count
+        expr: |
+          count(rental_contract_status{status="active"})
+
+      # Average platform rating
+      - record: platform:average_rating:current
+        expr: |
+          avg(agent_rating)
+
+  # ============================================================================
+  # Resource Utilization
+  # ============================================================================
+
+  - name: resource_metrics
+    interval: 30s
+    rules:
+      # CPU usage per service
+      - record: service:cpu_usage_percent:avg
+        expr: |
+          100 * (
+            1 - avg by (service) (
+              irate(process_cpu_seconds_total[1m])
+            )
+          )
+
+      # Memory usage per service
+      - record: service:memory_usage_bytes:current
+        expr: |
+          avg by (service) (process_resident_memory_bytes)
+
+      # Total CPU usage across platform
+      - record: platform:cpu_usage_percent:total
+        expr: |
+          100 - (
+            avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100
+          )
+
+      # Total memory usage percentage
+      - record: platform:memory_usage_percent:total
+        expr: |
+          100 * (
+            (
+              sum(node_memory_MemTotal_bytes) -
+              sum(node_memory_MemAvailable_bytes)
+            )
+            /
+            sum(node_memory_MemTotal_bytes)
+          )
+
+      # Disk usage percentage
+      - record: platform:disk_usage_percent:total
+        expr: |
+          100 * (
+            1 - (
+              sum(node_filesystem_avail_bytes{mountpoint="/"})
+              /
+              sum(node_filesystem_size_bytes{mountpoint="/"})
+            )
+          )
+
+  # ============================================================================
+  # SLA and Availability Metrics
+  # ============================================================================
+
+  - name: sla_metrics
+    interval: 5m
+    rules:
+      # Service availability (last 5m)
+      - record: service:availability:5m
+        expr: |
+          avg by (service) (up)
+
+      # Service availability (last 1h)
+      - record: service:availability:1h
+        expr: |
+          avg_over_time(up[1h])
+
+      # Service availability (last 24h)
+      - record: service:availability:24h
+        expr: |
+          avg_over_time(up[24h])
+
+      # Request success rate (non-5xx)
+      - record: service:request_success_rate:5m
+        expr: |
+          100 * (
+            sum by (service) (rate(http_requests_total{status!~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          )
+
+      # SLA compliance (P95 < 2s and error rate < 1%)
+      - record: service:sla_compliance:5m
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum by (service, le) (
+                rate(http_request_duration_seconds_bucket[5m])
+              )
+            ) < 2
+          )
+          and
+          (
+            (
+              sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+              /
+              sum by (service) (rate(http_requests_total[5m]))
+            ) < 0.01
+          )
