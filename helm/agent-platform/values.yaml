@@ -1,0 +1,457 @@
+# Default values for agent-platform
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  # Environment: development, staging, production
+  environment: production
+  # Image registry
+  imageRegistry: ghcr.io
+  # Image pull secrets
+  imagePullSecrets: []
+  # Storage class for persistent volumes
+  storageClass: "standard"
+
+# API Gateway configuration
+apiGateway:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: agent-platform/api-gateway
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 100
+    burst: 200
+
+# Registry Service configuration
+registryService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: agent-platform/registry-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8001
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Marketplace Service configuration
+marketplaceService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: agent-platform/marketplace-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8002
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Orchestrator Service configuration
+orchestratorService:
+  enabled: true
+  replicaCount: 5
+  image:
+    repository: agent-platform/orchestrator-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8003
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+# Agent Worker configuration
+agentWorker:
+  enabled: true
+  replicaCount: 10
+  image:
+    repository: agent-platform/agent-worker
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 10
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 70
+
+  # Kagent specific configuration
+  kagent:
+    enabled: true
+    sandbox: true
+    networkPolicy:
+      enabled: true
+      allowedHosts:
+        - "api.anthropic.com"
+        - "api.openai.com"
+        - "generativelanguage.googleapis.com"
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+
+  auth:
+    database: agent_platform
+    username: platform_admin
+    # password should be set via secret
+    existingSecret: "platform-secrets"
+    secretKeys:
+      adminPasswordKey: postgres-password
+
+  service:
+    type: ClusterIP
+    port: 5432
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+  # High availability
+  replication:
+    enabled: false
+    replicas: 2
+
+# Redis configuration
+redis:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 6379
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Redis configuration
+  config:
+    maxmemory: "1gb"
+    maxmemoryPolicy: "allkeys-lru"
+
+# RabbitMQ configuration
+rabbitmq:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: rabbitmq
+    tag: "3-management-alpine"
+    pullPolicy: IfNotPresent
+
+  auth:
+    username: platform_admin
+    # password should be set via secret
+    existingSecret: "platform-secrets"
+    secretKeys:
+      passwordKey: rabbitmq-password
+
+  service:
+    type: ClusterIP
+    port: 5672
+    managementPort: 15672
+
+  persistence:
+    enabled: true
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+# Monitoring configuration
+monitoring:
+  # Prometheus
+  prometheus:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: prom/prometheus
+      tag: "v2.45.0"
+      pullPolicy: IfNotPresent
+
+    service:
+      type: ClusterIP
+      port: 9090
+
+    persistence:
+      enabled: true
+      size: 50Gi
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+
+    # Scrape interval
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+  # Grafana
+  grafana:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: grafana/grafana
+      tag: "10.0.0"
+      pullPolicy: IfNotPresent
+
+    service:
+      type: ClusterIP
+      port: 3000
+
+    persistence:
+      enabled: true
+      size: 10Gi
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Admin credentials
+    adminUser: admin
+    # adminPassword should be set via secret
+    existingSecret: "platform-secrets"
+    adminPasswordKey: grafana-admin-password
+
+  # Jaeger
+  jaeger:
+    enabled: true
+    image:
+      repository: jaegertracing/all-in-one
+      tag: "1.47"
+      pullPolicy: IfNotPresent
+
+    service:
+      type: ClusterIP
+      collectorPort: 14268
+      queryPort: 16686
+      agentPort: 6831
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  hosts:
+    - host: api.agent-platform.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: api-gateway
+              port: 8000
+
+    - host: grafana.agent-platform.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: grafana
+              port: 3000
+
+  tls:
+    - secretName: agent-platform-tls
+      hosts:
+        - api.agent-platform.example.com
+        - grafana.agent-platform.example.com
+
+# Security configuration
+security:
+  # Pod Security Standards
+  podSecurityStandards:
+    enforced: true
+    level: "restricted"
+
+  # Network Policies
+  networkPolicies:
+    enabled: true
+
+  # RBAC
+  rbac:
+    create: true
+
+  # Service Account
+  serviceAccount:
+    create: true
+    name: "agent-platform-sa"
+    annotations: {}
+
+# ConfigMap data
+config:
+  # API Configuration
+  api:
+    corsOrigins: "*"
+    debug: false
+    logLevel: "INFO"
+
+  # Platform Configuration
+  platform:
+    name: "AI Agent Orchestration Platform"
+    version: "1.0.0"
+    marketplaceEnabled: true
+    volunteerPoolEnabled: true
+
+  # Task Configuration
+  task:
+    maxSubtasks: 100
+    maxExecutionTime: 3600
+    defaultTimeout: 1800
+
+# Secrets (these should be overridden in production)
+secrets:
+  # Create secrets from values
+  create: true
+
+  # Database
+  postgresPassword: "changeme_postgres_password"
+
+  # RabbitMQ
+  rabbitmqPassword: "changeme_rabbitmq_password"
+
+  # Grafana
+  grafanaAdminPassword: "changeme_grafana_password"
+
+  # API Keys (these should be generated securely)
+  anthropicApiKey: ""
+  openaiApiKey: ""
+  googleApiKey: ""
+
+  # Platform secrets
+  jwtSecret: "changeme_jwt_secret"
+  encryptionKey: "changeme_encryption_key"
+
+# Node selector for all pods
+nodeSelector: {}
+
+# Tolerations for all pods
+tolerations: []
+
+# Affinity rules for all pods
+affinity: {}

@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+data:
+  # Platform Configuration
+  PLATFORM_NAME: {{ .Values.config.platform.name | quote }}
+  PLATFORM_VERSION: {{ .Values.config.platform.version | quote }}
+  MARKETPLACE_ENABLED: {{ .Values.config.platform.marketplaceEnabled | quote }}
+  VOLUNTEER_POOL_ENABLED: {{ .Values.config.platform.volunteerPoolEnabled | quote }}
+
+  # API Configuration
+  CORS_ORIGINS: {{ .Values.config.api.corsOrigins | quote }}
+  DEBUG: {{ .Values.config.api.debug | quote }}
+  LOG_LEVEL: {{ .Values.config.api.logLevel | quote }}
+
+  # Task Configuration
+  MAX_SUBTASKS: {{ .Values.config.task.maxSubtasks | quote }}
+  MAX_EXECUTION_TIME: {{ .Values.config.task.maxExecutionTime | quote }}
+  DEFAULT_TIMEOUT: {{ .Values.config.task.defaultTimeout | quote }}
+
+  # Service URLs
+  REGISTRY_SERVICE_URL: "http://registry-service:8001"
+  MARKETPLACE_SERVICE_URL: "http://marketplace-service:8002"
+  ORCHESTRATOR_SERVICE_URL: "http://orchestrator-service:8003"
+
+  # Database Configuration
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: {{ .Values.postgresql.auth.database | quote }}
+
+  # Redis Configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # RabbitMQ Configuration
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+
+  # Monitoring
+  PROMETHEUS_URL: "http://prometheus:9090"
+  JAEGER_AGENT_HOST: "jaeger"
+  JAEGER_AGENT_PORT: "6831"
