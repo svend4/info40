@@ -1,0 +1,14 @@
+# CLI Requirements for Agent Platform
+
+# Core CLI framework
+typer==0.9.0
+click==8.1.7
+
+# HTTP requests
+requests==2.31.0
+
+# Rich terminal output
+rich==13.7.0
+
+# Additional utilities
+python-dateutil==2.8.2

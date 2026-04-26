@@ -1,0 +1,52 @@
+{{- if .Values.security.rbac.create -}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "agent-platform.fullname" . }}-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+rules:
+  # Allow reading ConfigMaps
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+  # Allow reading Secrets
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+
+  # Allow managing Pods (for agent workers)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+
+  # Allow reading Services
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+
+  # Allow managing Kagent resources
+  - apiGroups: ["kagent.dev"]
+    resources: ["agentsandboxes"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "agent-platform.fullname" . }}-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "agent-platform.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "agent-platform.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

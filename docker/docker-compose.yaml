@@ -1,0 +1,333 @@
+# Docker Compose для локального развертывания AI Agent Orchestration Platform
+# Для production используйте Kubernetes манифесты из /k8s
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Инфраструктурные сервисы
+  # ============================================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-platform-postgres
+    environment:
+      POSTGRES_DB: agent_platform
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: dev_password_CHANGE_ME
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-platform
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-platform-redis
+    command: redis-server --requirepass dev_password_CHANGE_ME --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-platform
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: agent-platform-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: platform
+      RABBITMQ_DEFAULT_PASS: dev_password_CHANGE_ME
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - agent-platform
+
+  # ============================================================================
+  # Core сервисы платформы
+  # ============================================================================
+
+  registry-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.registry-service
+    container_name: agent-platform-registry
+    environment:
+      SERVICE_NAME: registry-service
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: agent_platform
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: dev_password_CHANGE_ME
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password_CHANGE_ME
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-platform
+
+  marketplace-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.marketplace-service
+    container_name: agent-platform-marketplace
+    environment:
+      SERVICE_NAME: marketplace-service
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: agent_platform
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: dev_password_CHANGE_ME
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password_CHANGE_ME
+      MARKETPLACE_ENABLED: "true"
+      COMMISSION_RATE: "0.10"
+      LOG_LEVEL: INFO
+    ports:
+      - "8081:8081"
+      - "9091:9091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      registry-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-platform
+
+  orchestrator-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator-service
+    container_name: agent-platform-orchestrator
+    environment:
+      SERVICE_NAME: orchestrator-service
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: agent_platform
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: dev_password_CHANGE_ME
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password_CHANGE_ME
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: platform
+      RABBITMQ_PASSWORD: dev_password_CHANGE_ME
+      MAX_CONCURRENT_AGENTS: 100
+      DEFAULT_TASK_TIMEOUT: 3600
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LOG_LEVEL: INFO
+    ports:
+      - "8082:8082"
+      - "9092:9092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      registry-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-platform
+
+  # ============================================================================
+  # API Gateway
+  # ============================================================================
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api-gateway
+    container_name: agent-platform-api-gateway
+    environment:
+      REGISTRY_SERVICE_URL: http://registry-service:8080
+      MARKETPLACE_SERVICE_URL: http://marketplace-service:8081
+      ORCHESTRATOR_SERVICE_URL: http://orchestrator-service:8082
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password_CHANGE_ME
+      JWT_SECRET: dev_jwt_secret_CHANGE_ME_IN_PRODUCTION
+      RATE_LIMITING_ENABLED: "true"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    depends_on:
+      registry-service:
+        condition: service_healthy
+      marketplace-service:
+        condition: service_healthy
+      orchestrator-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-platform
+
+  # ============================================================================
+  # Agent Workers (масштабируемые)
+  # ============================================================================
+
+  agent-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent-worker
+    environment:
+      WORKER_TYPE: general
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: platform
+      RABBITMQ_PASSWORD: dev_password_CHANGE_ME
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SANDBOX_ENABLED: "true"
+      LOG_LEVEL: INFO
+    ports:
+      - "9093"  # Метрики (случайный порт)
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      orchestrator-service:
+        condition: service_healthy
+    networks:
+      - agent-platform
+    # Можно запустить несколько воркеров
+    deploy:
+      replicas: 3
+
+  # ============================================================================
+  # Мониторинг и observability
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agent-platform-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - agent-platform
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agent-platform-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin_CHANGE_ME
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - agent-platform
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agent-platform-jaeger
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"
+      - "9411:9411"
+    networks:
+      - agent-platform
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  agent-platform:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

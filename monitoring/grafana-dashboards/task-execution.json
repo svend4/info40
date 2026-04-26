@@ -1,0 +1,390 @@
+{
+  "dashboard": {
+    "title": "Task Execution Metrics",
+    "tags": ["tasks", "execution", "orchestration"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+        "type": "stat",
+        "title": "Pending Tasks",
+        "targets": [
+          {
+            "expr": "count(task_status{status=\"pending\"})",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 50, "color": "red" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+        "type": "stat",
+        "title": "Running Tasks",
+        "targets": [
+          {
+            "expr": "count(task_status{status=\"running\"})",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "value": 0, "color": "yellow" },
+                { "value": 1, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+        "type": "stat",
+        "title": "Completed (1h)",
+        "targets": [
+          {
+            "expr": "increase(tasks_completed_total[1h])",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+        "type": "stat",
+        "title": "Failed (1h)",
+        "targets": [
+          {
+            "expr": "increase(tasks_failed_total[1h])",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 1, "color": "yellow" },
+                { "value": 10, "color": "red" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+        "type": "graph",
+        "title": "Task Flow Rate",
+        "targets": [
+          {
+            "expr": "rate(tasks_created_total[5m])",
+            "legendFormat": "Created",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "rate(tasks_completed_total[5m])",
+            "legendFormat": "Completed",
+            "refId": "B",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "rate(tasks_failed_total[5m])",
+            "legendFormat": "Failed",
+            "refId": "C",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Tasks/sec", "format": "short" },
+          { "show": false }
+        ],
+        "seriesOverrides": [
+          { "alias": "Failed", "color": "#F2495C" },
+          { "alias": "Completed", "color": "#73BF69" },
+          { "alias": "Created", "color": "#5794F2" }
+        ]
+      },
+      {
+        "id": 6,
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 16 },
+        "type": "graph",
+        "title": "Task Decomposition Time",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(task_decomposition_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(task_decomposition_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(task_decomposition_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Seconds", "format": "s" },
+          { "show": false }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 16 },
+        "type": "graph",
+        "title": "Subtask Distribution",
+        "targets": [
+          {
+            "expr": "avg(task_subtask_count)",
+            "legendFormat": "Average Subtasks",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "max(task_subtask_count)",
+            "legendFormat": "Max Subtasks",
+            "refId": "B",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Count", "format": "short" },
+          { "show": false }
+        ]
+      },
+      {
+        "id": 8,
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 26 },
+        "type": "graph",
+        "title": "Agent Matching Time",
+        "targets": [
+          {
+            "expr": "rate(agent_matching_duration_seconds_sum[5m]) / rate(agent_matching_duration_seconds_count[5m])",
+            "legendFormat": "Average",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Seconds", "format": "s" },
+          { "show": false }
+        ]
+      },
+      {
+        "id": 9,
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 26 },
+        "type": "graph",
+        "title": "Queue Depth",
+        "targets": [
+          {
+            "expr": "task_queue_depth",
+            "legendFormat": "{{queue}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Depth", "format": "short" },
+          { "show": false }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": { "params": [100], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["A", "5m", "now"] },
+              "reducer": { "params": [], "type": "avg" },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "1m",
+          "name": "High Queue Depth",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 36 },
+        "type": "graph",
+        "title": "Task Execution Pipeline",
+        "targets": [
+          {
+            "expr": "count(task_status{status=\"pending\"})",
+            "legendFormat": "Pending",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "count(task_status{status=\"planning\"})",
+            "legendFormat": "Planning",
+            "refId": "B",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "count(task_status{status=\"running\"})",
+            "legendFormat": "Running",
+            "refId": "C",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "count(task_status{status=\"completed\"})",
+            "legendFormat": "Completed",
+            "refId": "D",
+            "datasource": "Prometheus"
+          }
+        ],
+        "stack": true,
+        "fill": 1
+      },
+      {
+        "id": 11,
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 46 },
+        "type": "piechart",
+        "title": "Tasks by Complexity",
+        "targets": [
+          {
+            "expr": "count(task_complexity) by (complexity_level)",
+            "legendFormat": "{{complexity_level}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "right" },
+          "pieType": "pie"
+        }
+      },
+      {
+        "id": 12,
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 46 },
+        "type": "piechart",
+        "title": "Tasks by Priority",
+        "targets": [
+          {
+            "expr": "count(task_priority) by (priority)",
+            "legendFormat": "{{priority}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "right" },
+          "pieType": "donut"
+        }
+      },
+      {
+        "id": 13,
+        "gridPos": { "h": 12, "w": 24, "x": 0, "y": 56 },
+        "type": "table",
+        "title": "Active Tasks",
+        "targets": [
+          {
+            "expr": "task_info{status=\"running\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "task_id": "Task ID",
+                "title": "Title",
+                "status": "Status",
+                "progress": "Progress %",
+                "assigned_agents": "Agents",
+                "started_at": "Started"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "status",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(task_status, status)",
+          "multi": true,
+          "includeAll": true,
+          "current": { "text": "All", "value": "$__all" }
+        },
+        {
+          "name": "priority",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(task_priority, priority)",
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(task_status[5m]) > 0",
+          "iconColor": "blue",
+          "name": "Task State Changes",
+          "titleFormat": "Task {{task_id}} changed to {{status}}"
+        }
+      ]
+    }
+  }
+}

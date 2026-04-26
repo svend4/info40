@@ -1,0 +1,246 @@
+# Prometheus Configuration for AI Agent Orchestration Platform
+
+global:
+  # Scrape interval
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+
+  # External labels for federation and remote write
+  external_labels:
+    cluster: 'agent-platform'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+      timeout: 10s
+
+# Load alert rules
+rule_files:
+  - 'alerts.yml'
+  - 'recording_rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Prometheus itself
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ============================================================================
+  # Core Platform Services
+  # ============================================================================
+
+  - job_name: 'api-gateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api-gateway:8000']
+        labels:
+          service: 'api-gateway'
+          tier: 'frontend'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'api-gateway'
+
+  - job_name: 'registry-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['registry-service:8001']
+        labels:
+          service: 'registry-service'
+          tier: 'backend'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'registry-service'
+
+  - job_name: 'marketplace-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['marketplace-service:8002']
+        labels:
+          service: 'marketplace-service'
+          tier: 'backend'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'marketplace-service'
+
+  - job_name: 'orchestrator-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['orchestrator-service:8003']
+        labels:
+          service: 'orchestrator-service'
+          tier: 'backend'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'orchestrator-service'
+
+  # ============================================================================
+  # Agent Workers (Kubernetes Service Discovery)
+  # ============================================================================
+
+  - job_name: 'agent-workers'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - agent-platform
+    relabel_configs:
+      # Only scrape pods with annotation prometheus.io/scrape=true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+
+      # Use custom metrics path if specified
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+
+      # Use custom port if specified
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+
+      # Add pod labels
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: kubernetes_namespace
+
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: kubernetes_pod_name
+
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: instance
+
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          tier: 'database'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          tier: 'cache'
+
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+        labels:
+          service: 'rabbitmq'
+          tier: 'messaging'
+
+  # ============================================================================
+  # Kubernetes Metrics (if running on K8s)
+  # ============================================================================
+
+  - job_name: 'kubernetes-apiservers'
+    kubernetes_sd_configs:
+      - role: endpoints
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels:
+          - __meta_kubernetes_namespace
+          - __meta_kubernetes_service_name
+          - __meta_kubernetes_endpoint_port_name
+        action: keep
+        regex: default;kubernetes;https
+
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+
+  - job_name: 'kubernetes-cadvisor'
+    kubernetes_sd_configs:
+      - role: node
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    metrics_path: /metrics/cadvisor
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+
+  # ============================================================================
+  # Node Exporter (System Metrics)
+  # ============================================================================
+
+  - job_name: 'node-exporter'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: node-exporter
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: instance
+
+# ============================================================================
+# Remote Write (Optional - for long-term storage)
+# ============================================================================
+
+# Uncomment to enable remote write to long-term storage
+# remote_write:
+#   - url: 'http://prometheus-long-term:9090/api/v1/write'
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+#       min_shards: 1
+#       max_samples_per_send: 5000
+#       batch_send_deadline: 5s
+#       min_backoff: 30ms
+#       max_backoff: 100ms
+
+# ============================================================================
+# Remote Read (Optional - for querying long-term storage)
+# ============================================================================
+
+# remote_read:
+#   - url: 'http://prometheus-long-term:9090/api/v1/read'
+#     read_recent: true
+
+# ============================================================================
+# Storage Configuration
+# ============================================================================
+
+# storage:
+#   tsdb:
+#     path: /prometheus
+#     retention:
+#       time: 30d
+#       size: 50GB

@@ -1,0 +1,7 @@
+# Requirements для Registry Service
+
+-r base.txt
+
+# Additional dependencies for agent registry
+jsonschema==4.20.0
+cerberus==1.3.5

@@ -1,0 +1,23 @@
+# Requirements для API Gateway
+
+-r base.txt
+
+# Rate limiting
+slowapi==0.1.9
+
+# CORS
+fastapi-cors==0.0.6
+
+# JWT Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# API documentation
+fastapi-pagination==0.12.14
+
+# Request validation
+email-validator==2.1.0
+phonenumbers==8.13.28
+
+# Caching
+aiocache==0.12.2

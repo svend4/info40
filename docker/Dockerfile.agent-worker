@@ -1,0 +1,63 @@
+# Dockerfile для Agent Worker
+# Worker для выполнения задач AI-агентами
+
+FROM python:3.11-slim as builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements/agent-worker.txt /tmp/requirements.txt
+
+# Установка зависимостей для AI агентов
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
+
+FROM python:3.11-slim
+
+LABEL maintainer="Agent Platform Team"
+LABEL service="agent-worker"
+LABEL version="1.0.0"
+
+# Установка runtime зависимостей + инструменты для агентов
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    vim \
+    postgresql-client \
+    sqlite3 \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY src/agent_worker /app/agent_worker
+COPY src/common /app/common
+
+# Создание sandbox директорий
+RUN mkdir -p /app/sandbox /app/logs && \
+    chown -R appuser:appuser /app
+
+# Переключение на непривилегированного пользователя
+USER appuser
+
+# Healthcheck (проверка что воркер может принимать задачи)
+HEALTHCHECK --interval=60s --timeout=15s --start-period=60s --retries=3 \
+    CMD python -c "import sys; from agent_worker.health import check; sys.exit(0 if check() else 1)"
+
+# Worker не имеет HTTP порта, работает с RabbitMQ
+# Но может экспортировать метрики
+EXPOSE 9093
+
+# Точка входа
+ENTRYPOINT ["python", "-m", "agent_worker.main"]

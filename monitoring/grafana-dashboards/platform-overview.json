@@ -1,0 +1,367 @@
+{
+  "dashboard": {
+    "title": "AI Agent Platform - Overview",
+    "tags": ["platform", "overview"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+        "type": "stat",
+        "title": "Total Agents",
+        "targets": [
+          {
+            "expr": "count(agent_status)",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "orientation": "auto",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 10, "color": "yellow" },
+                { "value": 50, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+        "type": "stat",
+        "title": "Active Agents",
+        "targets": [
+          {
+            "expr": "count(agent_status{status=\"active\"})",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "orientation": "auto",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 5, "color": "yellow" },
+                { "value": 20, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+        "type": "stat",
+        "title": "Tasks in Progress",
+        "targets": [
+          {
+            "expr": "count(task_status{status=\"running\"})",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+        "type": "stat",
+        "title": "Completed Tasks (24h)",
+        "targets": [
+          {
+            "expr": "increase(tasks_completed_total[24h])",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "yellow" },
+                { "value": 10, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+        "type": "graph",
+        "title": "Request Rate (req/s)",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{service}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Requests/sec", "format": "short" },
+          { "show": false }
+        ],
+        "xaxis": { "mode": "time", "show": true }
+      },
+      {
+        "id": 6,
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 8 },
+        "type": "graph",
+        "title": "Response Time (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{service}} - {{endpoint}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Seconds", "format": "s" },
+          { "show": false }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 18 },
+        "type": "graph",
+        "title": "Task Execution Time",
+        "targets": [
+          {
+            "expr": "rate(task_execution_duration_seconds_sum[5m]) / rate(task_execution_duration_seconds_count[5m])",
+            "legendFormat": "Average",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(task_execution_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(task_execution_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Seconds", "format": "s" },
+          { "show": false }
+        ]
+      },
+      {
+        "id": 8,
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 18 },
+        "type": "graph",
+        "title": "Error Rate",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+            "legendFormat": "5xx errors - {{service}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "rate(http_requests_total{status=~\"4..\"}[5m])",
+            "legendFormat": "4xx errors - {{service}}",
+            "refId": "B",
+            "datasource": "Prometheus"
+          }
+        ],
+        "yaxes": [
+          { "label": "Errors/sec", "format": "short" },
+          { "show": false }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": { "params": [10], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["A", "5m", "now"] },
+              "reducer": { "params": [], "type": "avg" },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "1m",
+          "handler": 1,
+          "name": "High Error Rate",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 9,
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+        "type": "piechart",
+        "title": "Tasks by Status",
+        "targets": [
+          {
+            "expr": "count(task_status) by (status)",
+            "legendFormat": "{{status}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" },
+          "pieType": "pie",
+          "displayLabels": ["percent"]
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+        "type": "piechart",
+        "title": "Agents by Pricing Mode",
+        "targets": [
+          {
+            "expr": "count(agent_info) by (pricing_mode)",
+            "legendFormat": "{{pricing_mode}}",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "bottom" },
+          "pieType": "donut",
+          "displayLabels": ["name", "percent"]
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+        "type": "stat",
+        "title": "Platform Revenue (24h)",
+        "targets": [
+          {
+            "expr": "increase(platform_revenue_total[24h])",
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 100, "color": "yellow" },
+                { "value": 1000, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 12,
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 36 },
+        "type": "table",
+        "title": "Top Performing Agents",
+        "targets": [
+          {
+            "expr": "topk(10, agent_tasks_completed_total)",
+            "format": "table",
+            "instant": true,
+            "refId": "A",
+            "datasource": "Prometheus"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": { "Time": true },
+              "indexByName": {},
+              "renameByName": {
+                "agent_id": "Agent ID",
+                "agent_name": "Agent Name",
+                "Value": "Completed Tasks"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "datasource",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": { "text": "Prometheus", "value": "Prometheus" }
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, service)",
+          "multi": true,
+          "includeAll": true,
+          "current": { "text": "All", "value": "$__all" }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "iconColor": "red",
+          "name": "Alerts",
+          "tagKeys": "alertname",
+          "textFormat": "{{ $labels.alertname }}: {{ $labels.description }}",
+          "titleFormat": "Alert"
+        }
+      ]
+    }
+  }
+}

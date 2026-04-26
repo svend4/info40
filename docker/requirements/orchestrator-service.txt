@@ -1,0 +1,17 @@
+# Requirements для Orchestrator Service
+
+-r base.txt
+
+# AI/LLM Libraries
+anthropic==0.25.1
+openai==1.10.0
+langchain==0.1.10
+langchain-core==0.1.27
+langchain-anthropic==0.1.1
+
+# Graph processing для task orchestration
+networkx==3.2.1
+
+# Workflow management
+celery==5.3.6
+kombu==5.3.5

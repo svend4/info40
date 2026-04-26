@@ -1,0 +1,135 @@
+{{- if .Values.apiGateway.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: {{ .Values.apiGateway.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.apiGateway.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.apiGateway.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.apiGateway.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+
+{{- if .Values.registryService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: registry-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: registry-service
+  minReplicas: {{ .Values.registryService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.registryService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.registryService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+
+{{- if .Values.marketplaceService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: marketplace-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: marketplace-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: marketplace-service
+  minReplicas: {{ .Values.marketplaceService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.marketplaceService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.marketplaceService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+
+{{- if .Values.orchestratorService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orchestrator-service-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: orchestrator-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orchestrator-service
+  minReplicas: {{ .Values.orchestratorService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.orchestratorService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.orchestratorService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+
+{{- if .Values.agentWorker.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-worker-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-worker
+  minReplicas: {{ .Values.agentWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.agentWorker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.agentWorker.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

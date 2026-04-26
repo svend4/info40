@@ -1,0 +1,148 @@
+---
+# Marketplace Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketplace-service
+  namespace: agent-platform
+  labels:
+    app: marketplace-service
+    component: core
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: marketplace-service
+  template:
+    metadata:
+      labels:
+        app: marketplace-service
+        component: core
+    spec:
+      containers:
+      - name: marketplace-service
+        image: agent-platform/marketplace-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+          name: http
+        - containerPort: 9091
+          name: metrics
+        env:
+        - name: SERVICE_NAME
+          value: "marketplace-service"
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_PORT
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: REDIS_HOST
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-platform-secrets
+              key: REDIS_PASSWORD
+        - name: MARKETPLACE_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: MARKETPLACE_ENABLED
+        - name: COMMISSION_RATE
+          valueFrom:
+            configMapKeyRef:
+              name: agent-platform-config
+              key: COMMISSION_RATE
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Marketplace Service ClusterIP
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketplace-service
+  namespace: agent-platform
+  labels:
+    app: marketplace-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: http
+  - port: 9091
+    targetPort: 9091
+    protocol: TCP
+    name: metrics
+  selector:
+    app: marketplace-service
+
+---
+# HorizontalPodAutoscaler для Marketplace Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: marketplace-service-hpa
+  namespace: agent-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: marketplace-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
